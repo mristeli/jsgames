@@ -13,8 +13,10 @@ paddleHeight = 10;
 
 ballRadius = 10;
 
-ballMaxX = (canvasWidth - ballRadius) / (2 * ballRadius);
-ballMaxY = (canvasHeight - ballRadius) / (2 * ballRadius);
+ballMaxX = (canvasWidth - 2 * ballRadius) / (2 * ballRadius);
+ballMaxY = (canvasHeight - 2 * ballRadius) / (2 * ballRadius);
+
+worldWidth = 32
 
 function Tile(p_x, p_y) {
   this.x = p_x;
@@ -29,6 +31,13 @@ function V2d(p_x, p_y) {
 function Ball(p_pos, p_dir) {
   this.pos = p_pos;
   this.dir = p_dir; 
+}
+
+function Game(tiles, paddle, ball_o) {
+  this.tiles = tiles;
+  this.paddle = paddle;
+  this.ball = ball_o;
+  this.running = true;
 }
 
 var dead_tile = new Tile(-1, -1)
@@ -61,7 +70,7 @@ function render_tiles(tiles, ctx) {
 function render_paddle(paddle, ctx) {
   ctx.fillStyle = '#00FF00'
   ctx.fillRect(
-    paddle * paddleWidth,
+    paddle * (canvasWidth - paddleWidth) / worldWidth,
     canvasHeight - paddleHeight,
     paddleWidth,
     paddleHeight
@@ -78,13 +87,6 @@ function render_ball(ball, ctx) {
     0, 2 * Math.PI
   )
   ctx.fill()
-}
-
-function Game(tiles, paddle, ball_o) {
-  this.tiles = tiles;
-  this.paddle = paddle;
-  this.ball = ball_o;
-  this.running = true;
 }
 
 function render_game (game, canvas) {
@@ -108,12 +110,10 @@ function render_game (game, canvas) {
 
 function tick(game) {
   var ball = game.ball;
-  
+
   ball.pos.x += ball.dir.x;
   ball.pos.y += ball.dir.y;
 
-  console.log('ball x', ball.pos.x);
-  
   if(ball.pos.x < 0) {
     ball.pos.x *= -1; 
     ball.dir.x *= -1;
@@ -129,16 +129,29 @@ function tick(game) {
     ball.pos.y = 2 * ballMaxY - ball.pos.y;
     ball.dir.y *= -1;
   }
+
+  var paddlePosY = ballMaxY - 0.5;
+  var ballPaddleD = ball.pos.x - game.paddle;
+  var worldPaddleWidth = worldWidth / canvasWidth * paddleWidth;
+
+  if( (ballPaddleD > 0 && ballPaddleD < worldPaddleWidth)  
+      && ball.pos.y > paddlePosY ) {
+         ball.pos.y = 2 * paddlePosY - ball.pos.y;
+         ball.dir.y *= -1;        
+  }
 }
 
 function rungame(canvas) {
   var game = new Game(
     get_tiles(rows, tilesPerRow),
-    1,
+    2,
     new Ball(
-      new V2d(3.0,3.0), 
-      new V2d(0.15, 0.15)), 
+      new V2d(4.0, 10.0), 
+      new V2d(0.15, 0.10)), 
   );
+  canvas.addEventListener('onkeydown', function check(e) {
+    alert(e.keyCode);
+  })
   requestAnimationFrame(function() {
     render_game(game, canvas)
   });
