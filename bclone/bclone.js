@@ -16,7 +16,7 @@ ballRadius = 10;
 ballMaxX = (canvasWidth - 2 * ballRadius) / (2 * ballRadius);
 ballMaxY = (canvasHeight - 2 * ballRadius) / (2 * ballRadius);
 
-worldWidth = 32
+worldWidth = 31
 
 function Tile(p_x, p_y) {
   this.x = p_x;
@@ -33,11 +33,24 @@ function Ball(p_pos, p_dir) {
   this.dir = p_dir; 
 }
 
-function Game(tiles, paddle, ball_o) {
+function Game(tiles) {
   this.tiles = tiles;
-  this.paddle = paddle;
-  this.ball = ball_o;
   this.running = true;
+
+  this.reset = function() {
+    this.paddle = new Paddle(31 * Math.random())
+    this.ball = new Ball(new V2d(31 * Math.random(), 10),
+      new V2d(0.15, 0.1))
+    this.running = true;
+  }
+}
+
+function Paddle(pos) {
+  this.setDir = function(p_dir) {
+    this.dir = p_dir;
+  }
+  this.dir = 0;
+  this.pos = pos;
 }
 
 var dead_tile = new Tile(-1, -1)
@@ -70,7 +83,7 @@ function render_tiles(tiles, ctx) {
 function render_paddle(paddle, ctx) {
   ctx.fillStyle = '#00FF00'
   ctx.fillRect(
-    paddle * (canvasWidth - paddleWidth) / worldWidth,
+    paddle.pos * (canvasWidth - paddleWidth) / worldWidth,
     canvasHeight - paddleHeight,
     paddleWidth,
     paddleHeight
@@ -104,7 +117,11 @@ function render_game (game, canvas) {
       render_game(game, canvas)
     })
   } else {
-    alert('stop')
+    alert('Hävisit')
+    game.reset();
+    requestAnimationFrame(function() {
+      render_game(game, canvas)
+    })
   }
 }
 
@@ -113,6 +130,15 @@ function tick(game) {
 
   ball.pos.x += ball.dir.x;
   ball.pos.y += ball.dir.y;
+
+  var paddle = game.paddle;
+
+  paddle.pos += paddle.dir;
+  if(paddle.pos < 0) {
+    paddle.pos = 0;
+  } else if ( paddle.pos > worldWidth ) {
+    paddle.pos = worldWidth;
+  }
 
   if(ball.pos.x < 0) {
     ball.pos.x *= -1; 
@@ -126,32 +152,51 @@ function tick(game) {
     ball.pos.y *= -1; 
     ball.dir.y *= -1;
   } else if ( ball.pos.y > ballMaxY ) {
+    game.running = false;
     ball.pos.y = 2 * ballMaxY - ball.pos.y;
     ball.dir.y *= -1;
-  }
+  } 
 
-  var paddlePosY = ballMaxY - 0.5;
-  var ballPaddleD = ball.pos.x - game.paddle;
-  var worldPaddleWidth = worldWidth / canvasWidth * paddleWidth;
+  var paddleMinY = ballMaxY - 0.5;
 
-  if( (ballPaddleD > 0 && ballPaddleD < worldPaddleWidth)  
-      && ball.pos.y > paddlePosY ) {
-         ball.pos.y = 2 * paddlePosY - ball.pos.y;
-         ball.dir.y *= -1;        
+  var ballLeft = ball.pos.x * 2 * ballRadius;
+  var ballRight = (ball.pos.x + 1) * 2 * ballRadius
+
+  var paddleLeft = paddle.pos * (canvasWidth - paddleWidth) / worldWidth;
+  var paddleRight = paddle.pos * (canvasWidth - paddleWidth) / worldWidth + paddleWidth;
+
+  var hit = (ballLeft < paddleRight & ballRight > paddleLeft) 
+
+  if( hit && ball.pos.y > paddleMinY ) {
+      ball.pos.y = 2 * paddleMinY - ball.pos.y;
+      ball.dir.y *= -1;        
   }
 }
 
 function rungame(canvas) {
   var game = new Game(
-    get_tiles(rows, tilesPerRow),
-    2,
-    new Ball(
-      new V2d(4.0, 10.0), 
-      new V2d(0.15, 0.10)), 
+    get_tiles(rows, tilesPerRow)
   );
-  canvas.addEventListener('onkeydown', function check(e) {
-    alert(e.keyCode);
+  game.reset();
+  document.addEventListener('keydown', function(e) {
+    switch(e.keyCode) {
+      case 37:
+        game.paddle.setDir(-0.25)
+        break;
+      case 39:
+        game.paddle.setDir(0.25)
+        break;
+      }
   })
+  document.addEventListener('keyup', function(e) {
+    switch(e.keyCode) {
+      case 37:
+      case 39:
+        game.paddle.setDir(0)
+        break;
+    }
+  })
+
   requestAnimationFrame(function() {
     render_game(game, canvas)
   });
