@@ -16,11 +16,19 @@ ballRadius = 10;
 ballMaxX = (canvasWidth - 2 * ballRadius) / (2 * ballRadius);
 ballMaxY = (canvasHeight - 2 * ballRadius) / (2 * ballRadius);
 
-worldWidth = 31
+worldWidth = ballMaxX
 
-function Tile(p_x, p_y) {
+function Tile(p_x, p_y, p_lifetime = 1) {
   this.x = p_x;
   this.y = p_y;
+  this.alive = true;
+  this.lifetime = p_lifetime;
+  this.hilight = false;
+
+  this.hit = function() {
+    this.lifetime--;
+    this.alive = this.lifetime > 0;
+  }
 }
 
 function V2d(p_x, p_y) {
@@ -53,31 +61,28 @@ function Paddle(pos) {
   this.pos = pos;
 }
 
-var dead_tile = new Tile(-1, -1)
-
-function get_tiles (rows, tilesPerRow) {
-  var tiles = [rows + tilesPerRow];
+function create_tiles (rows, tilesPerRow) {
+  var tiles = [];
   for(i = 0; i < rows; i++) {
     for(j = 0; j < tilesPerRow; j++) {
-      tiles[i * tilesPerRow + j] = new Tile(j, i)
+      tiles.push(new Tile(j, i, i + 1))
     }
   }
   return tiles;
 }
 
 function render_tiles(tiles, ctx) {
-  ctx.fillStyle = '#FF0000';
-  for (i = 0; i < rows; i++) {
-    for(j = 0; j < tilesPerRow; j++) {
-      tile = tiles[i * tilesPerRow + j];
-      if(tile.x < 0) continue;
-      ctx.fillRect(
+  tiles.forEach(function(tile) {
+    ctx.fillStyle = '#FF0000';
+    if(tile.hilight) {
+      ctx.fillStyle = '#FFFF00';
+    }
+    ctx.fillRect(
         tileMargin + tile.x * (tileMargin * 2 + tileWidth),
         tileMargin + tile.y * (tileMargin * 2 + tileHeight),    
         tileWidth, tileHeight
-      )
-    }
-  }
+    )
+  })
 }
 
 function render_paddle(paddle, ctx) {
@@ -103,7 +108,7 @@ function render_ball(ball, ctx) {
 }
 
 function render_game (game, canvas) {
-  tick(game);
+  if(!game.pause) tick(game);
 
   ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -126,56 +131,123 @@ function render_game (game, canvas) {
 }
 
 function tick(game) {
-  var ball = game.ball;
+  function updatePaddle() {
+    var paddle = game.paddle;
+    paddle.pos += paddle.dir;
+    if (paddle.pos < 0) {
+      paddle.pos = 0;
+      paddle.setDir(0);
+    }
+    else if (paddle.pos > worldWidth) {
+      paddle.pos = worldWidth;
+      paddle.setDir(0);
+    }
+    return paddle;
+  }
+  function updateBall() {
+    var ball = game.ball;
 
-  ball.pos.x += ball.dir.x;
-  ball.pos.y += ball.dir.y;
+    ball.pos.x += ball.dir.x;
+    ball.pos.y += ball.dir.y;
 
-  var paddle = game.paddle;
-
-  paddle.pos += paddle.dir;
-  if(paddle.pos < 0) {
-    paddle.pos = 0;
-  } else if ( paddle.pos > worldWidth ) {
-    paddle.pos = worldWidth;
+    if (ball.pos.x < 0) {
+      ball.pos.x *= -1;
+      ball.dir.x *= -1;
+    }
+    else if (ball.pos.x > ballMaxX) {
+      ball.pos.x = 2 * ballMaxX - ball.pos.x;
+      ball.dir.x *= -1;
+    }
+    return ball;
   }
 
-  if(ball.pos.x < 0) {
-    ball.pos.x *= -1; 
-    ball.dir.x *= -1;
-  } else if ( ball.pos.x > ballMaxX ) {
-    ball.pos.x = 2 * ballMaxX - ball.pos.x;
-    ball.dir.x *= -1;
-  }
-  
-  if(ball.pos.y < 0) {
-    ball.pos.y *= -1; 
-    ball.dir.y *= -1;
-  } else if ( ball.pos.y > ballMaxY ) {
-    game.running = false;
-    ball.pos.y = 2 * ballMaxY - ball.pos.y;
-    ball.dir.y *= -1;
-  } 
+  function checkPaddleHit() {
+    var paddleMinY = ballMaxY - 0.5;
 
-  var paddleMinY = ballMaxY - 0.5;
+    var ballLeft = ball.pos.x * 2 * ballRadius;
+    var ballRight = (ball.pos.x + 1) * 2 * ballRadius;
 
-  var ballLeft = ball.pos.x * 2 * ballRadius;
-  var ballRight = (ball.pos.x + 1) * 2 * ballRadius
+    var paddleLeft = paddle.pos * (canvasWidth - paddleWidth) / worldWidth;
+    var paddleRight = paddle.pos * (canvasWidth - paddleWidth) / worldWidth + paddleWidth;
 
-  var paddleLeft = paddle.pos * (canvasWidth - paddleWidth) / worldWidth;
-  var paddleRight = paddle.pos * (canvasWidth - paddleWidth) / worldWidth + paddleWidth;
+    var hit = (ballLeft < paddleRight & ballRight > paddleLeft);
 
-  var hit = (ballLeft < paddleRight & ballRight > paddleLeft) 
-
-  if( hit && ball.pos.y > paddleMinY ) {
+    if (ball.pos.y < 0) {
+      ball.pos.y *= -1;
+      ball.dir.y *= -1;
+    }
+    else if (hit && ball.pos.y > paddleMinY) {
       ball.pos.y = 2 * paddleMinY - ball.pos.y;
-      ball.dir.y *= -1;        
+      ball.dir.y *= -1;
+      return true;
+    }
+    else if (ball.pos.y > ballMaxY) {
+      game.running = false;
+      ball.pos.y = 2 * ballMaxY - ball.pos.y;
+      ball.dir.y *= -1;
+    }
+    return false;
   }
+  function checkTileHit() {
+    var tiles = game.tiles;
+    var ballLeft = ball.pos.x * 2 * ballRadius;
+    var ballRight = (ball.pos.x + 1) * 2 * ballRadius;
+    var ballUp = ball.pos.y * 2 * ballRadius;
+    var ballDown = (ball.pos.y + 1) * 2 * ballRadius;
+
+    var potentialHits = tiles.filter(function(tile) {
+      var tileLeft = tile.x * (tileWidth + 2 * tileMargin), 
+        tileRight = (tile.x + 1) * (tileWidth + 2 * tileMargin),
+        tileUp = tile.y * (tileHeight + 2 * tileMargin),
+        tileDown = (tile.y + 1) * (tileHeight + 2 * tileMargin) 
+
+      tile.hilight = (ballRight > tileLeft && ballLeft < tileRight) &&
+        (ballDown > tileUp && ballUp < tileDown);
+      return tile.hilight;
+    });
+    
+    for(i = 0; i < potentialHits.length; i++) {
+      var tile = potentialHits[i];
+      var dir = ball.dir;
+      var checkUp = dir.y > 0, checkLeft = dir.y > 0;
+
+      var tileUp = tile.y * (tileHeight + 2 * tileMargin);
+      var tileDown = (tile.y + 1) * (tileHeight + 2 * tileMargin);
+      
+      if(checkUp && ballUp < tileUp && ballDown > tileUp ||
+        ballUp < tileDown && ballDown > tileDown) {
+          ball.dir.y *= -1;
+          tile.hit()
+          return true;
+      } 
+  
+      var tileLeft = tile.x * (tileWidth + 2 * tileMargin); 
+      var tileRight = (tile.x + 1) * (tileWidth + 2 * tileMargin);
+
+      if(checkLeft && ballLeft < tileLeft && ballRight > tileLeft ||
+        ballLeft < tileRight && ballRight > tileRight) {
+          ball.dir.x *= -1;
+          tile.hit()
+          return true;
+      }
+    }
+    
+    return false;
+  }
+
+  var ball = updateBall();  
+  var paddle = updatePaddle();
+
+  if(!checkPaddleHit() && checkTileHit()) {
+    game.tiles = game.tiles.filter(function(tile) {
+      return tile.alive;
+    });
+  } 
 }
 
 function rungame(canvas) {
   var game = new Game(
-    get_tiles(rows, tilesPerRow)
+    create_tiles(rows, tilesPerRow)
   );
   game.reset();
   document.addEventListener('keydown', function(e) {
@@ -186,8 +258,11 @@ function rungame(canvas) {
       case 39:
         game.paddle.setDir(0.25)
         break;
-      }
-  })
+      case 32:
+        game.pause = !game.pause;
+        break;
+    }
+  });
   document.addEventListener('keyup', function(e) {
     switch(e.keyCode) {
       case 37:
