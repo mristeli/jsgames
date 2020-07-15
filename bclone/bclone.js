@@ -27,7 +27,7 @@ function Tile(p_x, p_y, p_lifetime = 1) {
 
   this.hit = function() {
     this.lifetime--;
-    this.alive = this.lifetime > 0;
+    this.alive = this.lifetime != 0;
   }
 }
 
@@ -48,7 +48,7 @@ function Game(tiles) {
   this.reset = function() {
     this.paddle = new Paddle(31 * Math.random())
     this.ball = new Ball(new V2d(31 * Math.random(), 10),
-      new V2d(0.15, 0.1))
+      new V2d(0.12, 0.1))
     this.running = true;
   }
 }
@@ -61,21 +61,44 @@ function Paddle(pos) {
   this.pos = pos;
 }
 
+// function create_tiles (rows, tilesPerRow) {
+//   var tiles = [];
+//   for(i = 0; i < rows; i++) {
+//     for(j = 0; j < tilesPerRow; j++) {
+//       tiles.push(new Tile(j, i, i + 1))
+//     }
+//   }
+//   return tiles;
+// }
 function create_tiles (rows, tilesPerRow) {
   var tiles = [];
-  for(i = 0; i < rows; i++) {
-    for(j = 0; j < tilesPerRow; j++) {
-      tiles.push(new Tile(j, i, i + 1))
-    }
+  for(j = 0; j < tilesPerRow; j++) {
+    tiles.push(new Tile(j, 0, 3))
   }
+  for(j = 0; j < tilesPerRow; j++) {
+    tiles.push(new Tile(j, 3, j % 3 ? 1 : 3))
+  }
+  for(j = 0; j < tilesPerRow; j++) {
+    tiles.push(new Tile(j, 4, 1))
+  }
+
   return tiles;
 }
 
 function render_tiles(tiles, ctx) {
   tiles.forEach(function(tile) {
-    ctx.fillStyle = '#FF0000';
+    switch(tile.lifetime) {
+      case 2:
+        ctx.fillStyle = '#FFFF00';
+        break;
+      case 3:
+        ctx.fillStyle = '#FF00FF';
+        break;
+      default: 
+        ctx.fillStyle = '#FF0000';
+    }
     if(tile.hilight) {
-      ctx.fillStyle = '#FFFF00';
+      ctx.fillStyle = '#FFFFFF';
     }
     ctx.fillRect(
         tileMargin + tile.x * (tileMargin * 2 + tileWidth),
@@ -216,18 +239,18 @@ function tick(game) {
       
       if(checkUp && ballUp < tileUp && ballDown > tileUp ||
         ballUp < tileDown && ballDown > tileDown) {
-          ball.dir.y *= -1;
           tile.hit()
+          ball.dir.y *= -1;
           return true;
-      } 
-  
+      }
+
       var tileLeft = tile.x * (tileWidth + 2 * tileMargin); 
       var tileRight = (tile.x + 1) * (tileWidth + 2 * tileMargin);
 
       if(checkLeft && ballLeft < tileLeft && ballRight > tileLeft ||
         ballLeft < tileRight && ballRight > tileRight) {
-          ball.dir.x *= -1;
           tile.hit()
+          ball.dir.x *= -1;
           return true;
       }
     }
