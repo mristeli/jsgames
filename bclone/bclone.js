@@ -1,10 +1,10 @@
 rows = 3;
-tilesPerRow = 8;
+tilesPerRow = 10;
 
 canvasHeight = 480;
 canvasWidth = 640;
 
-tileMargin = 5;
+tileMargin = 2;
 tileWidth = canvasWidth / tilesPerRow - (2 * tileMargin);
 tileHeight = canvasHeight / 20;
 
@@ -23,8 +23,7 @@ function Tile(p_x, p_y, p_lifetime = 1) {
   this.y = p_y;
   this.alive = true;
   this.lifetime = p_lifetime;
-  this.hilight = false;
-
+  
   this.hit = function() {
     this.lifetime--;
     this.alive = this.lifetime != 0;
@@ -41,14 +40,24 @@ function Ball(p_pos, p_dir) {
   this.dir = p_dir; 
 }
 
+function Bonus(p_pos, p_points) {
+  this.pos = p_pos;
+  this.p_points;
+
+  this.tick = function() {
+    this.pos.y += 0.15;
+  }
+}
+
 function Game(tiles) {
   this.tiles = tiles;
   this.running = true;
 
   this.reset = function() {
     this.paddle = new Paddle(31 * Math.random())
-    this.ball = new Ball(new V2d(31 * Math.random(), 10),
-      new V2d(0.12, 0.1))
+    this.ball = new Ball(
+      new V2d(31 * Math.random(), 10),
+      new V2d(Math.random() / 3, 0.1));
     this.running = true;
   }
 }
@@ -76,12 +85,11 @@ function create_tiles (rows, tilesPerRow) {
     tiles.push(new Tile(j, 0, 3))
   }
   for(j = 0; j < tilesPerRow; j++) {
-    tiles.push(new Tile(j, 3, j % 3 ? 1 : 3))
+    tiles.push(new Tile(j, 3, j < 3 ? 1 : 3))
   }
   for(j = 0; j < tilesPerRow; j++) {
-    tiles.push(new Tile(j, 4, 1))
+    tiles.push(new Tile(j, 4, j < 4 ? 1 : 3))
   }
-
   return tiles;
 }
 
@@ -97,9 +105,6 @@ function render_tiles(tiles, ctx) {
       default: 
         ctx.fillStyle = '#FF0000';
     }
-    if(tile.hilight) {
-      ctx.fillStyle = '#FFFFFF';
-    }
     ctx.fillRect(
         tileMargin + tile.x * (tileMargin * 2 + tileWidth),
         tileMargin + tile.y * (tileMargin * 2 + tileHeight),    
@@ -109,13 +114,28 @@ function render_tiles(tiles, ctx) {
 }
 
 function render_paddle(paddle, ctx) {
-  ctx.fillStyle = '#00FF00'
+  ctx.fillStyle = '#00FFF0'
   ctx.fillRect(
     paddle.pos * (canvasWidth - paddleWidth) / worldWidth,
     canvasHeight - paddleHeight,
-    paddleWidth,
+    paddleWidth / 4,
     paddleHeight
   )
+  ctx.fillStyle = '#00FF00'
+  ctx.fillRect(
+    paddle.pos * (canvasWidth - paddleWidth) / worldWidth + paddleWidth / 4,
+    canvasHeight - paddleHeight,
+    paddleWidth / 2,
+    paddleHeight
+  )
+  ctx.fillStyle = '#00FFF0'
+  ctx.fillRect(
+    paddle.pos * (canvasWidth - paddleWidth) / worldWidth + 3 * paddleWidth / 4,
+    canvasHeight - paddleHeight,
+    paddleWidth / 4,
+    paddleHeight
+  )
+
 }
 
 function render_ball(ball, ctx) {
@@ -185,10 +205,11 @@ function tick(game) {
   }
 
   function checkPaddleHit() {
-    var paddleMinY = ballMaxY - 0.5;
+    var paddleMinY = ballMaxY - paddleHeight / (2 * ballRadius);
 
     var ballLeft = ball.pos.x * 2 * ballRadius;
     var ballRight = (ball.pos.x + 1) * 2 * ballRadius;
+    var ballCenter = (ball.pos.x + 0.5) * 2 * ballRadius; 
 
     var paddleLeft = paddle.pos * (canvasWidth - paddleWidth) / worldWidth;
     var paddleRight = paddle.pos * (canvasWidth - paddleWidth) / worldWidth + paddleWidth;
@@ -202,6 +223,29 @@ function tick(game) {
     else if (hit && ball.pos.y > paddleMinY) {
       ball.pos.y = 2 * paddleMinY - ball.pos.y;
       ball.dir.y *= -1;
+      
+      var hitSpot = (ballCenter - paddleLeft) / paddleWidth;
+      if (hitSpot < 0.25) {
+        if(hitSpot < 0.05) {
+          ball.dir.x = ball.dir.x < 0 ? 2 * ball.dir.x : -0.05;
+        } else {
+          ball.dir.x -= 0.5*Math.abs(ball.dir.x);
+        }
+      } else if (hitSpot > 0.75) {
+        if(hitSpot > 0.95) {
+          ball.dir.x = ball.dir.x > 0 ? 3 * ball.dir.x : 0.05;  
+        } else {
+          ball.dir.x += 0.5*Math.abs(ball.dir.x);
+        }
+      }
+
+      if(paddle.dir < 0 && ball.dir.x < 0 ||
+         paddle.dir > 0 && ball.dir.x > 0) {
+        console.log('accelleeraaateee');
+        ball.dir.x *= 1.1;
+        ball.dir.y *= 1.1;
+      }
+
       return true;
     }
     else if (ball.pos.y > ballMaxY) {
@@ -211,24 +255,26 @@ function tick(game) {
     }
     return false;
   }
+  
   function checkTileHit() {
     var tiles = game.tiles;
     var ballLeft = ball.pos.x * 2 * ballRadius;
     var ballRight = (ball.pos.x + 1) * 2 * ballRadius;
+
     var ballUp = ball.pos.y * 2 * ballRadius;
     var ballDown = (ball.pos.y + 1) * 2 * ballRadius;
-
+    
     var potentialHits = tiles.filter(function(tile) {
       var tileLeft = tile.x * (tileWidth + 2 * tileMargin), 
         tileRight = (tile.x + 1) * (tileWidth + 2 * tileMargin),
         tileUp = tile.y * (tileHeight + 2 * tileMargin),
         tileDown = (tile.y + 1) * (tileHeight + 2 * tileMargin) 
-
-      tile.hilight = (ballRight > tileLeft && ballLeft < tileRight) &&
-        (ballDown > tileUp && ballUp < tileDown);
-      return tile.hilight;
+  
+        return (ballRight > tileLeft && ballLeft < tileRight) 
+        && (ballDown > tileUp && ballUp < tileDown);
     });
     
+    var tileWasHit = false;
     for(i = 0; i < potentialHits.length; i++) {
       var tile = potentialHits[i];
       var dir = ball.dir;
@@ -239,23 +285,29 @@ function tick(game) {
       
       if(checkUp && ballUp < tileUp && ballDown > tileUp ||
         ballUp < tileDown && ballDown > tileDown) {
-          tile.hit()
-          ball.dir.y *= -1;
-          return true;
+        tile.hit()
+        ball.pos.y += checkUp 
+          ? (ballDown - tileUp) / - ballRadius
+          : (tileDown - ballUp) / ballRadius 
+        ball.dir.y *= -1;
+        tileWasHit = true;
+        return true;
       }
 
       var tileLeft = tile.x * (tileWidth + 2 * tileMargin); 
       var tileRight = (tile.x + 1) * (tileWidth + 2 * tileMargin);
 
       if(checkLeft && ballLeft < tileLeft && ballRight > tileLeft ||
-        ballLeft < tileRight && ballRight > tileRight) {
+          ballLeft < tileRight && ballRight > tileRight) {
           tile.hit()
+          ball.pos.x += checkLeft 
+            ? (ballRight - tileLeft) / - ballRadius
+            : (tileRight - ballLeft) / ballRadius 
           ball.dir.x *= -1;
-          return true;
+          tileWasHit = true;
       }
     }
-    
-    return false;
+    return tileWasHit;
   }
 
   var ball = updateBall();  

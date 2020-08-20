@@ -8,12 +8,18 @@
     }
     #game {
       margin: 5px;
-      background-color:darkslateblue;
+      background-color:darkgray;
+      outline: blue 3px solid;
+    }
+    img {
+      display: none;
     }
   </style>  
 </head>
 <body id="body" onload="rungame(document.getElementById('game'))">
   <canvas id="game" width="640px" height="480px">
   </canvas>
+  <img src="res/koff.png" id="koff"></img>
+  <img src="res/ball.png" id="ball"></img>
 </body>
 </html>
